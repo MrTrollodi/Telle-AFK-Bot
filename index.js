@@ -512,13 +512,27 @@ function scheduleReconnect() {
 function initializeModules(bot, mcData, defaultMove) {
   console.log('[Modules] Initializing all modules...');
 
-  // ---------- AUTO AUTH ----------
+  // ---------- AUTO AUTH (AuthMe bypass: register on first join, login after) ----------
   if (config.utils['auto-auth'].enabled) {
-    const password = config.utils['auto-auth'].password;
+    const fs = require('fs');
+    const password = 'telleagent';
+    const flagFile = './registered.flag';
+
     setTimeout(() => {
-      bot.chat(`/register ${password} ${password}`);
-      bot.chat(`/login ${password}`);
-      console.log('[Auth] Sent login commands');
+      if (!fs.existsSync(flagFile)) {
+        // Pehli dafa join -> register
+        bot.chat(`/register ${password} ${password}`);
+        try {
+          fs.writeFileSync(flagFile, 'registered');
+        } catch (e) {
+          console.log('[Auth] Flag file likh nahi saka:', e.message);
+        }
+        console.log('[Auth] /register command bheja (pehla join)');
+      } else {
+        // Pehle se registered -> login
+        bot.chat(`/login ${password}`);
+        console.log('[Auth] /login command bheja');
+      }
     }, 1000);
   }
 
@@ -556,101 +570,7 @@ function initializeModules(bot, mcData, defaultMove) {
           if (bot) bot.setControlState('jump', false);
         }, 100);
         botState.lastActivity = Date.now();
-      }
-    }, 3000); // Jump every 30 seconds
-
-    if (config.utils['anti-afk'].sneak) {
-      bot.setControlState('sneak', true);
-    }
-  }
-
-  // ---------- MOVEMENT MODULES ----------
-  if (config.movement['circle-walk'].enabled) {
-    startCircleWalk(bot, defaultMove);
-  }
-  if (config.movement['random-jump'].enabled) {
-    startRandomJump(bot);
-  }
-  if (config.movement['look-around'].enabled) {
-    startLookAround(bot);
-  }
-
-  // ---------- CUSTOM MODULES ----------
-  if (config.modules.avoidMobs) avoidMobs(bot);
-  if (config.modules.combat) combatModule(bot, mcData);
-  if (config.modules.beds) bedModule(bot, mcData);
-  if (config.modules.chat) chatModule(bot);
-
-  // Periodic Rejoin
-  if (config.utils['periodic-rejoin'] && config.utils['periodic-rejoin'].enabled) {
-    periodicRejoin(bot);
-  }
-
-  console.log('[Modules] All modules initialized!');
-}
-
-// Periodic Rejoin Module
-const setupLeaveRejoin = require('./leaveRejoin');
-
-// Periodic Rejoin Module - Handled by leaveRejoin.js now
-function periodicRejoin(bot) {
-  // Deprecated in favor of leaveRejoin.js
-  console.log('[Rejoin] Using new leaveRejoin system.');
-}
-
-// ============================================================
-// MOVEMENT HELPERS
-// ============================================================
-function startCircleWalk(bot, defaultMove) {
-  const radius = config.movement['circle-walk'].radius;
-  let angle = 0;
-  let lastPathTime = 0;
-
-  addInterval(() => {
-    if (!bot || !botState.connected) return;
-
-    // Rate limit pathfinding
-    const now = Date.now();
-    if (now - lastPathTime < 2000) return;
-    lastPathTime = now;
-
-    try {
-      const x = bot.entity.position.x + Math.cos(angle) * radius;
-      const z = bot.entity.position.z + Math.sin(angle) * radius;
-      bot.pathfinder.setMovements(defaultMove);
-      bot.pathfinder.setGoal(new GoalBlock(Math.floor(x), Math.floor(bot.entity.position.y), Math.floor(z)));
-      angle += Math.PI / 4;
-      botState.lastActivity = Date.now();
-    } catch (e) {
-      console.log('[CircleWalk] Error:', e.message);
-    }
-  }, config.movement['circle-walk'].speed);
-}
-
-function startRandomJump(bot) {
-  addInterval(() => {
-    if (!bot || !botState.connected) return;
-    try {
-      bot.setControlState('jump', true);
-      setTimeout(() => {
-        if (bot) bot.setControlState('jump', false);
-      }, 300);
-      botState.lastActivity = Date.now();
-    } catch (e) {
-      console.log('[RandomJump] Error:', e.message);
-    }
-  }, config.movement['random-jump'].interval);
-}
-
-function startLookAround(bot) {
-  addInterval(() => {
-    if (!bot || !botState.connected) return;
-    try {
-      const yaw = Math.random() * Math.PI * 2;
-      const pitch = (Math.random() - 0.5) * Math.PI / 4;
-      bot.look(yaw, pitch, true);
-      botState.lastActivity = Date.now();
-    } catch (e) {
+}} catch (e) {
       console.log('[LookAround] Error:', e.message);
     }
   }, config.movement['look-around'].interval);
@@ -903,3 +823,4 @@ console.log(`Auto-Reconnect: ${config.utils['auto-reconnect'] ? 'Enabled' : 'Dis
 console.log('='.repeat(50));
 
 createBot();
+      
